@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Estado por instância Evolution: contador diário, warmup, pausa e circuito.
+model InstanceState {
+  instance            String    @id
+  warmupStart         DateTime  @default(now())
+  dayKey              String    @default("") // "YYYY-MM-DD" local do último reset
+  sentToday           Int       @default(0)
+  paused              Boolean   @default(false)
+  pauseReason         String?
+  lastSendAt          DateTime?
+  consecutiveFailures Int       @default(0)
+  dailyCapOverride    Int? // se definido, sobrepõe a curva de warmup
+  updatedAt           DateTime  @updatedAt
+}
+
+/// Fila de envios em lote (faixa bulk). Drenada pelo worker com drip + jitter.
+model OutboxJob {
+  id        String    @id @default(cuid())
+  instance  String
+  endpoint  String // "sendText" | "sendMedia"
+  payload   String // corpo JSON encaminhado à Evolution
+  number    String // número de destino (para log/observabilidade)
+  status    String    @default("QUEUED") // QUEUED | SENDING | SENT | FAILED
+  attempts  Int       @default(0)
+  lastError String?
+  jobGroup  String? // id opcional de campanha
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+
+  @@index([instance, status])
+}
+
+/// Auditoria de tudo que saiu (as duas faixas).
+model SendLog {
+  id        String   @id @default(cuid())
+  instance  String
+  lane      String // "transactional" | "bulk"
+  endpoint  String
+  number    String
+  ok        Boolean
+  status    Int?
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([instance, createdAt])
+}

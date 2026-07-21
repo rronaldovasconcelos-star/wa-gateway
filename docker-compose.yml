@@ -1,0 +1,39 @@
+# Deploy do wa-gateway ao lado da Evolution (Coolify).
+# Ajuste `EVOLUTION_URL` para o nome/porta internos do container da Evolution na
+# mesma rede Docker, e coloque o gateway nessa rede (bloco `networks`).
+services:
+  wa-gateway:
+    build: .
+    container_name: wa-gateway
+    restart: unless-stopped
+    ports:
+      - "8090:8090" # exponha só se precisar de acesso externo; senão, use a rede interna
+    environment:
+      PORT: "8090"
+      GW_API_KEY: "${GW_API_KEY}"
+      EVOLUTION_URL: "${EVOLUTION_URL}"          # ex: http://evolution:8080 (nome do container)
+      EVOLUTION_APIKEY: "${EVOLUTION_APIKEY}"
+      DATABASE_URL: "file:./data/gateway.db"
+      WARMUP_CURVE: "${WARMUP_CURVE:-20,40,80,160,320,500}"
+      DAILY_CAP_REGIME: "${DAILY_CAP_REGIME:-500}"
+      BULK_MIN_GAP_MS: "${BULK_MIN_GAP_MS:-8000}"
+      BULK_MAX_GAP_MS: "${BULK_MAX_GAP_MS:-20000}"
+      CIRCUIT_FAILURE_THRESHOLD: "${CIRCUIT_FAILURE_THRESHOLD:-5}"
+      ALERT_INSTANCE: "${ALERT_INSTANCE}"
+      ALERT_TO: "${ALERT_TO}"
+    volumes:
+      - wa-gateway-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8090/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    # networks:
+    #   - evolution-net   # descomente e ajuste para a rede onde a Evolution roda
+
+# volumes/networks
+volumes:
+  wa-gateway-data:
+# networks:
+#   evolution-net:
+#     external: true
