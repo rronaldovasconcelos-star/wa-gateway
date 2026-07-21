@@ -14,7 +14,8 @@ RUN npm run build
 FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# openssl: runtime do Prisma. curl: usado pelo healthcheck do Coolify.
+RUN apt-get update && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 RUN npm install --omit=dev
 COPY prisma ./prisma
