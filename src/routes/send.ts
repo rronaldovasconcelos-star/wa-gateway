@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { env } from '../config/env.js';
 import { laneOf } from '../core/lanes.js';
 import { refreshDaily } from '../core/instanceState.js';
 import { takeTransactionalSlot } from '../core/rateLimiter.js';
@@ -34,14 +35,17 @@ function makeSendHandler(endpoint: string, forceBulk: boolean) {
       return;
     }
 
-    // ---- Faixa TRANSACIONAL: síncrona, com tetos de segurança ----
-    const { state, remaining } = await refreshDaily(instance);
+    // ---- Faixa TRANSACIONAL: síncrona, pacing suave + teto de segurança alto ----
+    // Não aplica o teto de warmup (isso é só da faixa bulk); tráfego reativo
+    // estabelecido não pode ser barrado em 20/dia. Só bloqueia se a instância
+    // está pausada (kill-switch) ou se estourou o teto anti-loop.
+    const { state } = await refreshDaily(instance);
     if (state.paused) {
       res.status(503).json({ error: 'instância pausada pelo gateway', reason: state.pauseReason });
       return;
     }
-    if (remaining <= 0) {
-      res.status(429).json({ error: 'teto diário atingido para esta instância', sentToday: state.sentToday });
+    if (state.sentToday >= env.txDailyCap) {
+      res.status(429).json({ error: 'teto de seguranca (anti-loop) atingido', sentToday: state.sentToday });
       return;
     }
     const gotSlot = await takeTransactionalSlot(instance);

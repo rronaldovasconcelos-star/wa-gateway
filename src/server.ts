@@ -16,7 +16,12 @@ export function buildServer() {
   // que os projetos já enviam — assim integrar = trocar só URL e valor da chave.
   app.use((req: Request, res: Response, next: NextFunction) => {
     const key = req.header('x-gw-key') ?? req.header('apikey');
-    if (!env.gwApiKey || key !== env.gwApiKey) {
+    // Aceita a chave do gateway OU a apikey real da Evolution. Isso permite o
+    // "swap transparente": ao mover o domínio da Evolution para o gateway, os
+    // chamadores existentes (n8n, Chatwoot, etc.) que já mandam a apikey da
+    // Evolution continuam autenticando sem nenhuma mudança neles.
+    const ok = !!key && (key === env.gwApiKey || (!!env.evolutionApiKey && key === env.evolutionApiKey));
+    if (!ok) {
       res.status(401).json({ error: 'não autorizado (x-gw-key/apikey inválida)' });
       return;
     }

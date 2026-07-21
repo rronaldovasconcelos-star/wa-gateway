@@ -25,6 +25,10 @@ export const env = {
   txBucketCapacity: num('TX_BUCKET_CAPACITY', 3),
   txRefillPerSec: num('TX_REFILL_PER_SEC', 0.34),
   txMaxWaitMs: num('TX_MAX_WAIT_MS', 10_000),
+  // Teto de SEGURANÇA da faixa transacional (anti-loop desgovernado). NÃO é o
+  // teto de warmup — tráfego reativo estabelecido não pode ser barrado em 20/dia.
+  // Alto de propósito; só serve pra conter um loop realmente descontrolado.
+  txDailyCap: num('TX_DAILY_CAP', 5000),
 
   // Faixa bulk (fila com drip)
   bulkMinGapMs: num('BULK_MIN_GAP_MS', 8_000),
