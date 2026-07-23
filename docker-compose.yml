@@ -47,6 +47,14 @@ services:
       - "traefik.http.routers.wa-evo.tls.certresolver=letsencrypt"
       - "traefik.http.routers.wa-evo.priority=1000"
       - "traefik.http.routers.wa-evo.service=wa-evo-svc"
+      # Domínio próprio do gateway (admin/health + usado pelo CSP). Prioridade
+      # alta p/ vencer qualquer router órfão que o Coolify tenha deixado.
+      - "traefik.http.routers.wa-gw.rule=Host(`wa-gateway.iainteligencia.com`)"
+      - "traefik.http.routers.wa-gw.entrypoints=https"
+      - "traefik.http.routers.wa-gw.tls=true"
+      - "traefik.http.routers.wa-gw.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.wa-gw.priority=1000"
+      - "traefik.http.routers.wa-gw.service=wa-evo-svc"
       - "traefik.http.services.wa-evo-svc.loadbalancer.server.port=8090"
 
 volumes:
