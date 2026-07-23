@@ -1,17 +1,23 @@
-# Deploy do wa-gateway ao lado da Evolution (Coolify).
-# Ajuste `EVOLUTION_URL` para o nome/porta internos do container da Evolution na
-# mesma rede Docker, e coloque o gateway nessa rede (bloco `networks`).
+# Deploy do wa-gateway no Coolify (build = "Docker Compose").
+#
+# SWAP GLOBAL: o gateway entra em DUAS redes:
+#   - coolify            -> onde vive o coolify-proxy (Traefik). Coolify roteia o
+#                           domínio próprio wa-gateway.iainteligencia.com por aqui.
+#   - agente-pessoal-net -> onde vive o container `evolution_api` (standalone).
+#                           Dá acesso interno a http://evolution_api:8080 e o
+#                           Traefik (também nessa rede) alcança o gateway.
+#
+# A label wa-evo assume Host(evolution.iainteligencia.com) com prioridade 1000
+# (a Evolution não define prioridade -> default ~= tamanho da regra, perde).
+# Rollback = remover a label wa-evo (Traefik volta pra Evolution na hora).
 services:
   wa-gateway:
     build: .
-    container_name: wa-gateway
     restart: unless-stopped
-    ports:
-      - "8090:8090" # exponha só se precisar de acesso externo; senão, use a rede interna
     environment:
       PORT: "8090"
       GW_API_KEY: "${GW_API_KEY}"
-      EVOLUTION_URL: "${EVOLUTION_URL}"          # ex: http://evolution:8080 (nome do container)
+      EVOLUTION_URL: "${EVOLUTION_URL:-http://evolution_api:8080}"
       EVOLUTION_APIKEY: "${EVOLUTION_APIKEY}"
       DATABASE_URL: "file:./data/gateway.db"
       WARMUP_CURVE: "${WARMUP_CURVE:-20,40,80,160,320,500}"
@@ -28,12 +34,26 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    # networks:
-    #   - evolution-net   # descomente e ajuste para a rede onde a Evolution roda
+    networks:
+      - coolify
+      - agente-pessoal-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=coolify"
+      # FLIP: assume o domínio da Evolution com prioridade maior que a dela.
+      - "traefik.http.routers.wa-evo.rule=Host(`evolution.iainteligencia.com`)"
+      - "traefik.http.routers.wa-evo.entrypoints=https"
+      - "traefik.http.routers.wa-evo.tls=true"
+      - "traefik.http.routers.wa-evo.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.wa-evo.priority=1000"
+      - "traefik.http.routers.wa-evo.service=wa-evo-svc"
+      - "traefik.http.services.wa-evo-svc.loadbalancer.server.port=8090"
 
-# volumes/networks
 volumes:
   wa-gateway-data:
-# networks:
-#   evolution-net:
-#     external: true
+
+networks:
+  coolify:
+    external: true
+  agente-pessoal-net:
+    external: true
